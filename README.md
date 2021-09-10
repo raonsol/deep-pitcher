@@ -1,2 +1,2 @@
 # deep-pitcher
-utility for pitch estimation by vocal separation from audio source
+utility for pitch estimation by vocal separation from audio source with machine learning
