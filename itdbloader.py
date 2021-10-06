@@ -61,14 +61,9 @@ atexit.register(LogRuntime.show_runtimes)
 
 def get_config():
     config = configparser.ConfigParser()
-    config.add_section("loader")
-    config.set("loader", "showmax", "yes")
-    config.set("loader", "force", "yes")
-    config.set("loader", "clear", "yes")
-    config.set("loader", "stats", "yes")
-    
-    if config.read(".itdb.config") == []:
-        logging.error("ERROR: Could not read config file")
+
+    if not config.read(".itdb.config"):
+        logging.error("Could not read config file")
         raise ImportError()
 
     return config
@@ -80,12 +75,9 @@ def load_itdb(config):
     if not os.path.exists(xmlfile):
         logging.fatal("ERROR: iTunes xmlfile %r does not exist", xmlfile)
 
-    # check to see if we really even need to run
-    if not (config.getboolean("loader", "force")):
-        sys.exit()
-
     itunes = load_xml(xmlfile)
-    DbLoader(config, itunes)
+    return DbLoader(config, itunes)
+
 
 class DbLoader:
     def __init__(self, config, itunes):
@@ -97,12 +89,16 @@ class DbLoader:
         try:
             self.user_id = int(config.get("user", "id"))
         except configparser.NoOptionError as e:
-            print('\033[31m'+"ERROR: "+'\033[0m'+ str(e))
+            print('\033[31m' + "ERROR: " + '\033[0m' + str(e))
             print("Check out .itdb.config file")
             sys.exit()
 
-        # use default path if not set
-        self.secure_path="/tmp"
+        if config.getboolean("loader", "savecsv"):
+            self.csv_path = os.path.join(os.getcwd(), "result_csv")
+            if not os.path.exists(self.csv_path):
+                os.mkdir(self.csv_path)
+        else:
+            self.csv_path = "/tmp"
 
         self.max = {}
         # dictionary of column names we're missing (and their max values)
@@ -134,7 +130,7 @@ class DbLoader:
 
         columns_we_care_about = self.get_track_columns()
 
-        tracks_csv_filename = os.path.join(self.secure_path, "itdb_tracks.csv")
+        tracks_csv_filename = os.path.join(self.csv_path, "itdb_tracks.csv")
         logging.info("Making tracks csv")
         with open(tracks_csv_filename, "w", newline="") as csv_file:
             writer = csv.writer(csv_file)
@@ -158,7 +154,7 @@ class DbLoader:
 
                     if key.replace(" ", "_") not in columns_we_care_about:
                         if key not in self.missing or len(str(track[key])) > len(
-                            self.missing[key]
+                                self.missing[key]
                         ):
                             self.missing[key] = str(track[key])
         self.load_csv("tracks", tracks_csv_filename)
@@ -167,7 +163,7 @@ class DbLoader:
     @LogRuntime()
     def load_playlists(self):
         max_name = ""
-        playlist_tracks_filename = os.path.join(self.secure_path, "itdb_playlist_tracks.csv")
+        playlist_tracks_filename = os.path.join(self.csv_path, "itdb_playlist_tracks.csv")
         logging.info("Creating playlists and playlist_tracks csv")
         with open(playlist_tracks_filename, "w") as playlist_tracks:
 
@@ -212,8 +208,8 @@ class DbLoader:
         logging.info("Loading csv into: %r", table)
         os.chmod(filename, 0o644)
         sql = (
-            """LOAD DATA LOCAL INFILE '%s' IGNORE INTO TABLE %s FIELDS TERMINATED BY ',' ENCLOSED BY '"'"""
-            % (filename, table)
+                """LOAD DATA LOCAL INFILE '%s' IGNORE INTO TABLE %s FIELDS TERMINATED BY ',' ENCLOSED BY '"'"""
+                % (filename, table)
         )
         try:
             self.cursor.execute(sql)
@@ -281,12 +277,12 @@ class DbLoader:
 def db_connect(config):
     logging.info("Connecting to MySQL")
     try:
-        c=MySQLdb.connect(
+        c = MySQLdb.connect(
             host=config.get("client", "host"),
             db=config.get("client", "database"),
             user=config.get("client", "user"),
             passwd=config.get("client", "password"),
-            charset = config.get("client", "charset"),
+            charset=config.get("client", "charset"),
             local_infile=1
         )
     except configparser.NoOptionError as e:
@@ -324,7 +320,7 @@ def main():
 
     config = get_config()
 
-    parser = argparse.ArgumentParser(description="LoadiTunes XML into MySQL.")
+    parser = argparse.ArgumentParser(description="Load iTunes XML into MySQL.")
     parser.add_argument("-p", "--password", help="Password")
     parser.add_argument("-size", "--size", help="Size", type=int)
     parser.add_argument("-f", "--force", help="Log verbosely", action="store_true")

@@ -132,3 +132,5 @@ dmypy.json
 tempCodeRunnerFile.py
 .itdb.config
 .vscode/
+.idea/
+result_csv/

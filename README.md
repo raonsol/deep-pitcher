@@ -1,5 +1,5 @@
 # deep-pitcher
-utility for pitch estimation by vocal separation from audio source with machine learn
+utility for pitch estimation by vocal separation from audio source with machine learning
 
 ## Initialization
 ### .itdb.config 설정
