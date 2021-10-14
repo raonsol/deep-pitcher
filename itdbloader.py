@@ -15,7 +15,6 @@ import datetime
 import logging
 import os
 import plistlib
-import stat
 import sys
 
 import argcomplete
@@ -56,7 +55,7 @@ class LogRuntime:
             print(f"{desc}: {duration}")
 
 
-atexit.register(LogRuntime.show_runtimes)
+# atexit.register(LogRuntime.show_runtimes)
 
 
 def get_config():
@@ -89,7 +88,7 @@ class DbLoader:
         try:
             self.user_id = int(config.get("user", "id"))
         except configparser.NoOptionError as e:
-            print('\033[31m' + "ERROR: " + '\033[0m' + str(e))
+            print("\033[31m" + "ERROR: " + "\033[0m" + str(e))
             print("Check out .itdb.config file")
             sys.exit()
 
@@ -154,7 +153,7 @@ class DbLoader:
 
                     if key.replace(" ", "_") not in columns_we_care_about:
                         if key not in self.missing or len(str(track[key])) > len(
-                                self.missing[key]
+                            self.missing[key]
                         ):
                             self.missing[key] = str(track[key])
         self.load_csv("tracks", tracks_csv_filename)
@@ -163,7 +162,9 @@ class DbLoader:
     @LogRuntime()
     def load_playlists(self):
         max_name = ""
-        playlist_tracks_filename = os.path.join(self.csv_path, "itdb_playlist_tracks.csv")
+        playlist_tracks_filename = os.path.join(
+            self.csv_path, "itdb_playlist_tracks.csv"
+        )
         logging.info("Creating playlists and playlist_tracks csv")
         with open(playlist_tracks_filename, "w") as playlist_tracks:
 
@@ -208,8 +209,8 @@ class DbLoader:
         logging.info("Loading csv into: %r", table)
         os.chmod(filename, 0o644)
         sql = (
-                """LOAD DATA LOCAL INFILE '%s' IGNORE INTO TABLE %s FIELDS TERMINATED BY ',' ENCLOSED BY '"'"""
-                % (filename, table)
+            """LOAD DATA LOCAL INFILE '%s' IGNORE INTO TABLE %s FIELDS TERMINATED BY ',' ENCLOSED BY '"'"""
+            % (filename, table)
         )
         try:
             self.cursor.execute(sql)
@@ -283,7 +284,7 @@ def db_connect(config):
             user=config.get("client", "user"),
             passwd=config.get("client", "password"),
             charset=config.get("client", "charset"),
-            local_infile=1
+            local_infile=1,
         )
     except configparser.NoOptionError as e:
         print(e)

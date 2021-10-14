@@ -134,3 +134,5 @@ tempCodeRunnerFile.py
 .vscode/
 .idea/
 result_csv/
+/deep-pitcher.code-workspace
+/*.pclprof
