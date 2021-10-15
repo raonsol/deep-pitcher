@@ -136,3 +136,4 @@ tempCodeRunnerFile.py
 result_csv/
 /deep-pitcher.code-workspace
 /*.pclprof
+.DS_Store

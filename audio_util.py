@@ -1,4 +1,4 @@
-from pydub import AudioSegment
+from pydub import AudioSegment, effects
 import tempfile
 from pydub.utils import mediainfo
 from spleeter.separator import Separator
@@ -11,7 +11,6 @@ import tensorflow_hub as hub
 import numpy as np
 import pandas as pd
 import os
-import errno
 import librosa
 import crepe
 import pychorus
@@ -162,7 +161,7 @@ class AudioConverter:
 
         return predict_val[0], predict_val[1], predict_val[2]
 
-    def pitch_detect_alt(self):
+    def detect_pitch_alt(self):
         model = hub.load("./spice_2")
         audio_sample = self.src.get_array_of_samples()
         model_output = model.signatures["serving_default"](
@@ -208,6 +207,9 @@ class AudioConverter:
             n_title = n_title.replace(remove_list[x], "")
 
         return n + "_" + n_artist + "_" + n_title + extend
+
+    def normalize(self):
+        self.src = effects.normalize(self.src)
 
     def export(self, export_path=None, format="wav", sample_rate=SAMPLE_RATE):
         """export loaded audio to selected format and path
@@ -286,13 +288,7 @@ if __name__ == "__main__":
                 except TypeError as t:
                     print("TypeError in parameter:", t)
                 except Exception as e:
-                    # 이름 출력에 문제있는 경우
-                    if e.errno and e.errno == errno.EISDIR:
-                        print("Directory Error:")
-                        print(e)
-                    # 그 밖의 경우
-                    else:
-                        print("Error processing ", n, "\n", e)
+                    print("Error processing ", n, "\n", e)
 
     pitch_result.to_csv("pitch_result.csv", mode="w")
     print("Pitch result saved")

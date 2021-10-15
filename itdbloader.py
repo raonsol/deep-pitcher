@@ -92,12 +92,9 @@ class DbLoader:
             print("Check out .itdb.config file")
             sys.exit()
 
-        if config.getboolean("loader", "savecsv"):
-            self.csv_path = os.path.join(os.getcwd(), "result_csv")
-            if not os.path.exists(self.csv_path):
-                os.mkdir(self.csv_path)
-        else:
-            self.csv_path = "/tmp"
+        self.csv_path = os.path.join(os.getcwd(), "result_csv")
+        if not os.path.exists(self.csv_path):
+            os.mkdir(self.csv_path)
 
         self.max = {}
         # dictionary of column names we're missing (and their max values)
@@ -133,6 +130,7 @@ class DbLoader:
         logging.info("Making tracks csv")
         with open(tracks_csv_filename, "w", newline="") as csv_file:
             writer = csv.writer(csv_file)
+            writer.writerow(columns_we_care_about)
             for track in tqdm.tqdm(tracks.values()):
                 track["User_ID"] = self.user_id
 
@@ -209,7 +207,7 @@ class DbLoader:
         logging.info("Loading csv into: %r", table)
         os.chmod(filename, 0o644)
         sql = (
-            """LOAD DATA LOCAL INFILE '%s' IGNORE INTO TABLE %s FIELDS TERMINATED BY ',' ENCLOSED BY '"'"""
+            """LOAD DATA LOCAL INFILE '%s' IGNORE INTO TABLE %s FIELDS TERMINATED BY ',' ENCLOSED BY '"' IGNORE 1 LINES"""
             % (filename, table)
         )
         try:
