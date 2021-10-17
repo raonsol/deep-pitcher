@@ -1,4 +1,3 @@
-import contextlib
 import os
 from multiprocessing import freeze_support
 from concurrent import futures
@@ -10,13 +9,14 @@ from colorama import Fore
 from line_profiler_pycharm import profile
 from tqdm import tqdm
 
-from audio_util import AudioConverter
-from utils import yes_or_no, print_results
+from audio_process import AudioConverter
+from utils import yes_or_no, print_results, get_paths
 
 WAV_PATH = "/Volumes/vault0/dataset3/wav"
 CHORUS_PATH = "/Volumes/vault0/dataset3/chorus"
 WAV_OVERWRITE = False
 CHORUS_OVERWRITE = False
+N_PROCESS = 10
 
 
 def export_track(data):
@@ -57,7 +57,7 @@ def convert_wav(tracks, out_path):
     target_cnt = len(tracks)
     print()
     print(f"Start converting {target_cnt} files...")
-    with futures.ProcessPoolExecutor(max_workers=4) as exe:
+    with futures.ProcessPoolExecutor(max_workers=N_PROCESS) as exe:
         results = tqdm(
             exe.map(export_track, zip(tracks, repeat(out_path))),
             total=target_cnt,
@@ -82,11 +82,15 @@ def _extract_chorus(data):
         return -1
     try:
         c = AudioConverter(input_path, export_path)
-        with open(os.devnull, "w") as f, contextlib.redirect_stdout(f):
-            chorus_sec = c.detect_chorus()
+        chorus_sec, success = c.detect_chorus()
         c.cut_audio(chorus_sec, 30)
+        c.normalize()
         c.export(format="wav", sample_rate=16000)
-        return True
+
+        if not success:
+            return -2
+        else:
+            return True
     except:
         return in_path
 
@@ -100,14 +104,10 @@ def extract_chorus(in_path, out_path):
         else:
             print("Using default path...")
             out_path = "/tmp"
-
-    # not including subdirectory files
-    tracks = [
-        x for x in os.listdir(in_path) if (x.endswith(".wav") or x.endswith(".WAV"))
-    ]
+    tracks = get_paths(in_path)
     target_cnt = len(tracks)
     error_list = []
-    skipped_cnt = 0
+    skipped_cnt = failed_cnt = 0
 
     print(f"Start extracting chorus of {target_cnt} files...")
     with futures.ProcessPoolExecutor(max_workers=4) as exe:
@@ -118,9 +118,12 @@ def extract_chorus(in_path, out_path):
         for result in results:
             if result == -1:
                 skipped_cnt += 1
+            elif result == -2:
+                failed_cnt += 1
             elif result is not True:
                 error_list.append(result)
 
+    ## for test in single process
     # results = tqdm(
     #     map(_extract_chorus, zip(tracks, repeat(in_path), repeat(out_path))),
     #     total=target_cnt,
@@ -128,23 +131,25 @@ def extract_chorus(in_path, out_path):
     # for result in results:
     #     if result == -1:
     #         skipped_cnt += 1
+    #     elif result == -2:
+    #         failed_cnt += 1
     #     elif result is not True:
     #         error_list.append(result)
 
-    return target_cnt, error_list, skipped_cnt
+    return target_cnt, error_list, skipped_cnt, failed_cnt
 
 
 def main():
-    # read tracks
+    # read tracks and convert to wav
     tracks = pd.read_csv(os.path.join("./result_csv", "itdb_tracks.csv")).to_dict()
-
-    # convert to wav
     total_cnt, failed, skip_cnt = convert_wav(tracks, WAV_PATH)
     print_results(total_cnt, failed, skip_cnt)
 
     # preprocess
-    total_cnt, failed, skip_cnt = extract_chorus(WAV_PATH, CHORUS_PATH)
-    print_results(total_cnt, failed, skip_cnt)
+    # normalize + cut 30sec of chorus part
+    total_cnt, errors, skip_cnt, failed_cnt = extract_chorus(WAV_PATH, CHORUS_PATH)
+    print_results(total_cnt, errors, skip_cnt)
+    print(f"{failed_cnt} items failed to estimate, used default time (60s)")
 
 
 if __name__ == "__main__":
