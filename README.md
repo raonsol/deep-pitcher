@@ -1,5 +1,5 @@
 # deep-pitcher
-utility for pitch estimation by vocal separation from audio source with machine learning
+Estimates pitch of human vocal from songs by vocal separation with machine learning
 
 ## Initialization
 ### .itdb.config 설정
@@ -42,13 +42,24 @@ SELECT @@GLOBAL.secure_file_priv;
 [mysqld]
 secure_file_priv="" or "/tmp" 
 ~~~
-deep-pitcher에서 기본적으로 SQL로 로드하는 파일은 /tmp에 위치합니다. 따라서 "/tmp"를 입력하는 것이 (그나마) 보안상 좋으나, SSH 등의 원격 서버에 연결했을 경우는 ""(empty)를 입력해야 합니다.
+
+deep-pitcher에서 기본적으로 SQL로 로드하는 파일은 /tmp에 위치합니다. 따라서 "/tmp"를 입력하는 것이 (그나마) 보안상 좋으나, SSH 등의 원격 서버에 연결했을 경우는 ""(empty)를
+입력해야 합니다.
+
 * macOS에서 dmg로 mysql을 설치한 경우:
-    * 위의 내용을 담은 새로운 cnf파일을 생성합니다.
-    * 설정→MySQL→Configuration→Configuration File에 체크 후 cnf파일 경로 입력
+  * 위의 내용을 담은 새로운 cnf파일을 생성합니다.
+  * 설정→MySQL→Configuration→Configuration File에 체크 후 cnf파일 경로 입력
 * linux 및 macOS(brew 등) 환경:
-    * vim /etc/mysql/my.cnf
-    * 위의 내용 추가한 후 저장
-    * MySQL 서버 재시작 (rpm으로 설치한 경우 systemctl restart mysqld)
-  
+  * vim /etc/mysql/my.cnf
+  * 위의 내용 추가한 후 저장
+  * MySQL 서버 재시작 (rpm으로 설치한 경우 systemctl restart mysqld)
+
 SELECT @@GLOBAL.secure_file_priv; 시 원하는 경로로 값이 바뀌어 있으면 성공입니다.
+
+## 출처
+
+### audio_process, feature extraction
+
+Learning to Recognize Musical Genre from Audio, Defferrard, Michael and Mohanty, Sharada P. and Carroll, Sean F. and
+Salathè, Marcel, 2018,
+https://arxiv.org/abs/1803.05337
