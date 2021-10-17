@@ -1,6 +1,9 @@
+import contextlib
+
 from pydub import AudioSegment, effects
 import tempfile
 from pydub.utils import mediainfo
+from scipy import stats
 from spleeter.separator import Separator
 from spleeter.audio.adapter import AudioAdapter
 from multiprocessing import freeze_support
@@ -16,6 +19,8 @@ import crepe
 import pychorus
 
 # 경로와 포맷 지정
+from utils import get_filename
+
 ROOT_PATH = os.path.join(os.path.expanduser("~"), "audio_root/")
 BASE_PATH = ROOT_PATH + "original"
 OUT_PATH = ROOT_PATH + "out"
@@ -28,7 +33,7 @@ class AudioConverter:
     T_SEC = 1000
     T_MIN = T_SEC * 60
 
-    @profile
+    # @profile
     def __init__(self, src_path, process_path="/tmp"):
         """
         :param src_path: audio file path
@@ -36,6 +41,7 @@ class AudioConverter:
         :param process_path: path for store wav files while processing, default is "/tmp"
         :type process_path: string
         """
+        # TODO: src에 경로나 음악파일 중 아무거나 집어넣어도 되도록 구현
         self.src_path = src_path
         self.process_path = process_path
         self.src = AudioSegment.from_file(src_path)
@@ -59,41 +65,124 @@ class AudioConverter:
             self.T_SEC * sec_start : self.T_SEC * sec_start + self.T_SEC * sec_dur
         ]
 
-    def get_features(self, feature_list):
+    # @profile
+    def get_features(self, features, moments, idx):
         """analyzes audio file and returns feature values
 
-        :param feature_list: list of features to export
-        :type feature_list: list
-        :returns: dictionary of features
-        :rtype: dict
+        :param moments: moments to extract (ex: mean, max, median...)
+        :type moments: tuple
+        :param features: list and amount of features to export (ex: mfccs=20, bpm=1...)
+        :type features: dict
+        :param idx: column to use for return Series
+        :type idx: pd.MultiIndex
+        :returns: Series of features
+        :rtype: pd.Series
         """
 
-        y_harm, y_perc = librosa.effects.hpss(self.y)
-        result = {}
+        def feature_stats(name, values):
+            if name == "tempo":
+                result[name, "mean"] = values
+                return
 
-        if ("tempo" or "BPM") in feature_list:
-            tempo, _ = librosa.beat.beat_track(self.y, sr=self.sr)
-            result["bpm"] = tempo
-        if "zero_crossings" in feature_list:
-            zc = librosa.zero_crossings(self.y, pad=False)
-            result["zero_crossings"] = zc
-        if "spectral_centroid" in feature_list:
-            sp_c = librosa.feature.spectral_centroid(self.y, sr=self.sr)[0]
-            result["spectral_centroid"] = sp_c
-        if "spectral_rolloff" in feature_list:
-            sp_r = librosa.feature.spectral_rolloff(self.y, sr=self.sr)[0]
-            result["spectral_rolloff"] = sp_r
-        if "chroma" in feature_list:
-            chromagram = librosa.feature.chroma_stft(self.y, sr=self.sr, hop_length=512)
-            result["chroma"] = chromagram
-        if "mfcc" in feature_list:
-            mfccs = librosa.feature.mfcc(self.y, sr=self.sr, n_mfcc=20)
-            result["mfcc"] = mfccs
+            if "mean" in moments:
+                result[name, "mean"] = np.mean(values, axis=1)
+            if "std" in moments:
+                result[name, "std"] = np.std(values, axis=1)
+            if "skew" in moments:
+                result[name, "skew"] = stats.skew(values, axis=1)
+            if "kurtosis" in moments:
+                result[name, "kurtosis"] = stats.kurtosis(values, axis=1)
+            if "median" in moments:
+                result[name, "median"] = np.median(values, axis=1)
+            if "min" in moments:
+                result[name, "min"] = np.min(values, axis=1)
+            if "max" in moments:
+                result[name, "max"] = np.max(values, axis=1)
+
+        result = pd.Series(
+            index=idx, dtype=np.float32, name=get_filename(self.src_path)
+        )
+        y_harm, y_perc = librosa.effects.hpss(self.y)
+
+        # cqt
+        cqt = np.abs(
+            librosa.cqt(
+                self.y,
+                sr=self.sr,
+                hop_length=512,
+                bins_per_octave=12,
+                n_bins=7 * 12,
+                tuning=None,
+            )
+        )
+        assert cqt.shape[0] == 7 * 12
+        assert (
+            np.ceil(len(self.y) / 512) <= cqt.shape[1] <= np.ceil(len(self.y) / 512) + 1
+        )
+
+        # stft
+        stft = np.abs(librosa.stft(self.y, n_fft=2048, hop_length=512))
+        assert stft.shape[0] == 1 + 2048 // 2
+        assert (
+            np.ceil(len(self.y) / 512)
+            <= stft.shape[1]
+            <= np.ceil(len(self.y) / 512) + 1
+        )
+
+        if "tempo" in features:
+            # use beat.plp to get stats
+            tempo = librosa.beat.tempo(y_perc, sr=self.sr)
+            feature_stats("tempo", tempo)
+        if "tonnetz" in features:
+            f = librosa.feature.tonnetz(
+                chroma=librosa.feature.chroma_cens(C=cqt, n_chroma=12, n_octaves=7)
+            )
+            feature_stats("tonnetz", f)
+        if ("rms" or "rmse") in features:
+            f = librosa.feature.rms(S=stft)
+            feature_stats("rms", f)
+        if "zcr" in features:
+            x = librosa.feature.zero_crossing_rate(self.y, pad=False)
+            feature_stats("zcr", x)
+
+        if "spectral_centroid" in features:
+            x = librosa.feature.spectral_centroid(S=stft)
+            feature_stats("spectral_centroid", x)
+        if "spectral_bandwidth" in features:
+            x = librosa.feature.spectral_bandwidth(S=stft)
+            feature_stats("spectral_bandwidth", x)
+        if "spectral_contrast" in features:
+            x = librosa.feature.spectral_contrast(S=stft)
+            feature_stats("spectral_contrast", x)
+        if "spectral_rolloff" in features:
+            x = librosa.feature.spectral_rolloff(S=stft)
+            feature_stats("spectral_rolloff", x)
+
+        if "chroma_stft" in features:
+            x = librosa.feature.chroma_stft(
+                S=stft ** 2, n_chroma=features["chroma_stft"]
+            )
+            feature_stats("chroma_stft", x)
+        if "chroma_cqt" in features:
+            x = librosa.feature.chroma_cqt(
+                C=cqt, n_chroma=features["chroma_cqt"], n_octaves=7
+            )
+            feature_stats("chroma_cqt", x)
+        if "chroma_cens" in features:
+            x = librosa.feature.chroma_cens(
+                C=cqt, n_chroma=features["chroma_cens"], n_octaves=7
+            )
+            feature_stats("chroma_cens", x)
+
+        if "mfcc" in features:
+            mel = librosa.feature.melspectrogram(sr=self.sr, S=stft ** 2)
+            # apply log scaling (dB) for mfcc
+            x = librosa.feature.mfcc(
+                S=librosa.power_to_db(mel), n_mfcc=features["mfcc"]
+            )
+            feature_stats("mfcc", x)
 
         return result
-
-    def export_features(self, features):
-        return
 
     def extract_vocal_by_file(self, out_path, out_name, option=2):
         """
@@ -104,7 +193,7 @@ class AudioConverter:
         :param option: (optional) number of channels that wants to separate, default=2
         """
         # 2stems: vocal + background music
-        separator = Separator("spleeter:%sstems" % str(option))
+        separator = Separator("spleeter:%sstems-16kHz" % str(option))
         separator.separate_to_file(
             self.src_path, out_path, filename_format=out_name + "_{instrument}.{codec}"
         )
@@ -119,7 +208,7 @@ class AudioConverter:
         """
         freeze_support()
         # 2stems: vocal + background music
-        separator = Separator("spleeter:%sstems" % str(option))
+        separator = Separator("spleeter:%sstems-16kHz" % str(option))
         waveform, _ = AudioAdapter.default().load(
             self.src_path, sample_rate=SAMPLE_RATE
         )
@@ -171,7 +260,7 @@ class AudioConverter:
         uncertainty_outputs = model_output["uncertainty"]
         confidence_outputs = 1.0 - uncertainty_outputs
 
-    @profile
+    # @profile
     def detect_chorus(self):
         """
         :return: Time in seconds of the start of the chorus
@@ -180,39 +269,49 @@ class AudioConverter:
         # pychorus.create_chroma(self.y)
         s = np.abs(librosa.stft(self.y, n_fft=2 ** 14)) ** 2
         chroma = librosa.feature.chroma_stft(S=s, sr=self.sr)
-        chorus_start_sec = pychorus.find_chorus(chroma, self.sr, self.duration, 5)
+
+        # mute error messages of find_chorus()
+        with open(os.devnull, "w") as f, contextlib.redirect_stdout(f):
+            chorus_start_sec = pychorus.find_chorus(chroma, self.sr, self.duration, 10)
+            flag = True
 
         # if the estimated chrous sec seems incorrect, we use default value
         if not chorus_start_sec or self.duration - chorus_start_sec < 30:
             chorus_start_sec = 60
+            flag = False
 
-        return chorus_start_sec
+        return chorus_start_sec, flag
 
-    def get_name(self, n, extend=""):
+    def get_name(self, option=0, extend=""):
         """
         create file name to export
 
-        :param n: 순번 값
+        :param option: 0 for use original name, 1 for {artist_title} format
         :param extend: (optional) 덧붙일 문자열
         :returns: file name without format
         :rtype: String
         """
-        n_artist = self.meta["artist"]
-        n_title = self.meta["title"]
+        if option:
+            n_artist = self.meta["artist"]
+            n_title = self.meta["title"]
 
-        # remove charactors that might be problem
-        remove_list = ",?!()&`_'" + '"'
-        for x in range(len(remove_list)):
-            n_artist = n_artist.replace(remove_list[x], "")
-            n_title = n_title.replace(remove_list[x], "")
+            # remove charactors that might be problem
+            remove_list = ",?!()&`_'" + '"'
+            for x in range(len(remove_list)):
+                n_artist = n_artist.replace(remove_list[x], "")
+                n_title = n_title.replace(remove_list[x], "")
 
-        return n + "_" + n_artist + "_" + n_title + extend
+            return n + "_" + n_artist + "_" + n_title + extend
+
+        else:
+            return os.path.splitext(os.path.basename(self.src_path))[0]
 
     def normalize(self):
         self.src = effects.normalize(self.src)
 
     def export(self, export_path=None, format="wav", sample_rate=SAMPLE_RATE):
         """export loaded audio to selected format and path
+
         :param export_path: path to export file, default is process_path of AudioConverter class
         :param format: format of audio, default is wav
         :param sample_rate: target sample rate to export

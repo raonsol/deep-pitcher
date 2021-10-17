@@ -10,7 +10,7 @@ from line_profiler_pycharm import profile
 from tqdm import tqdm
 
 from audio_process import AudioConverter
-from utils import yes_or_no, print_results, get_paths
+from utils import yes_or_no, print_results, get_paths, is_dir
 
 WAV_PATH = "/Volumes/vault0/dataset3/wav"
 CHORUS_PATH = "/Volumes/vault0/dataset3/chorus"
@@ -47,10 +47,10 @@ def export_track(data):
 def convert_wav(tracks, out_path):
     # TODO: create option to save full wav file or not
 
-    if not os.path.isdir(out_path):
-        print(Fore.RED + "WAV export path is not exist.", end="")
-        if yes_or_no("Would you like to make one?"):
-            os.mkdir(WAV_PATH)
+    if not is_dir(out_path):
+        print("Using default path...")
+        out_path = os.path.join(os.getcwd(), "prep")
+        os.mkdir(out_path)
 
     error_list = []
     skip_cnt = 0

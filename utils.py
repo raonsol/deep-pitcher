@@ -1,5 +1,7 @@
 import os
 
+from colorama import Fore, Style
+
 
 def yes_or_no(question):
     """Creates y/n question with handling invalid inputs within console
@@ -39,8 +41,11 @@ def get_paths(in_path):
     :rtype: list
     """
     # not including subdirectory files
+    path = os.path.abspath(in_path)
     file_list = [
-        x for x in os.listdir(in_path) if (x.endswith(".wav") or x.endswith(".WAV"))
+        x.path
+        for x in os.scandir(path)
+        if (x.path.endswith(".wav") or x.path.endswith(".WAV"))
     ]
     return file_list
 
@@ -54,3 +59,13 @@ def get_filename(in_path):
     :rtype: os.path object
     """
     return os.path.splitext(os.path.basename(in_path))[0]
+
+
+def is_dir(in_path):
+    if not os.path.isdir(in_path):
+        print(Fore.RED + f"Path is not exist: {in_path}" + Style.RESET_ALL)
+        if not yes_or_no("Would you like to make one?"):
+            return False
+        else:
+            os.mkdir(in_path)
+    return True
