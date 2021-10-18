@@ -43,16 +43,17 @@ def extract_features(data):
     track, out_path, features, moments = data
     feature = {}
     idx = get_columns(features, moments)
-    # try:
-    c = AudioConverter(track)
-    feature = c.get_features(features, moments, idx)
-    success = True
-    # except:
-    #     success = track
+    try:
+        c = AudioConverter(track)
+        feature = c.extract_features(features, moments, idx)
+        success = True
+    except:
+        success = track
 
     return success, feature
 
 
+@profile
 def main():
     colorama.init(autoreset=True)
     tracks = get_paths(TARGET_PATH)
@@ -87,33 +88,34 @@ def main():
 
     # use multiprocessing
     print(f"Starting extract features for {n_total} files...")
-    # with futures.ProcessPoolExecutor(max_workers=N_PROCESS) as exe:
-    #     results = tqdm(
-    #         exe.map(
-    #             extract_features,
-    #             zip(tracks, repeat(DEST_PATH), repeat(feature_list), repeat(moments)),
-    #         ),
-    #         total=n_total,
-    #     )
-    #     for result in results:
-    #         error_obj, y = result
-    #         feature_result.loc[y.name] = y
-    #         if error_obj is not True:
-    #             error_list.append(error_obj)
-
-    results = tqdm(
-        map(
-            extract_features,
-            zip(tracks, repeat(out_path), repeat(feature_list), repeat(moments)),
-        ),
-        total=n_total,
-    )
-    for result in results:
-        error_obj, y = result
-        if error_obj is not True:
-            error_list.append(error_obj)
-        else:
+    with futures.ProcessPoolExecutor(max_workers=N_PROCESS) as exe:
+        results = tqdm(
+            exe.map(
+                extract_features,
+                zip(tracks, repeat(DEST_PATH), repeat(feature_list), repeat(moments)),
+            ),
+            total=n_total,
+        )
+        for result in results:
+            error_obj, y = result
             feature_result.loc[y.name] = y
+            if error_obj is not True:
+                error_list.append(error_obj)
+
+    # single process run for test
+    # results = tqdm(
+    #     map(
+    #         extract_features,
+    #         zip(tracks, repeat(out_path), repeat(feature_list), repeat(moments)),
+    #     ),
+    #     total=n_total,
+    # )
+    # for result in results:
+    #     error_obj, y = result
+    #     if error_obj is not True:
+    #         error_list.append(error_obj)
+    #     else:
+    #         feature_result.loc[y.name] = y
 
     # save to csv
     print("Destination path:" + out_path)

@@ -65,8 +65,8 @@ class AudioConverter:
             self.T_SEC * sec_start : self.T_SEC * sec_start + self.T_SEC * sec_dur
         ]
 
-    # @profile
-    def get_features(self, features, moments, idx):
+    @profile
+    def extract_features(self, features, moments, idx):
         """analyzes audio file and returns feature values
 
         :param moments: moments to extract (ex: mean, max, median...)
@@ -102,7 +102,8 @@ class AudioConverter:
         result = pd.Series(
             index=idx, dtype=np.float32, name=get_filename(self.src_path)
         )
-        y_harm, y_perc = librosa.effects.hpss(self.y)
+        # disabled for long compute time
+        # y_harm, y_perc = librosa.effects.hpss(self.y)
 
         # cqt
         cqt = np.abs(
@@ -131,7 +132,7 @@ class AudioConverter:
 
         if "tempo" in features:
             # use beat.plp to get stats
-            tempo = librosa.beat.tempo(y_perc, sr=self.sr)
+            tempo = librosa.beat.tempo(self.y, sr=self.sr)
             feature_stats("tempo", tempo)
         if "tonnetz" in features:
             f = librosa.feature.tonnetz(
@@ -178,7 +179,7 @@ class AudioConverter:
             mel = librosa.feature.melspectrogram(sr=self.sr, S=stft ** 2)
             # apply log scaling (dB) for mfcc
             x = librosa.feature.mfcc(
-                S=librosa.power_to_db(mel), n_mfcc=features["mfcc"]
+                sr=self.sr, S=librosa.power_to_db(mel), n_mfcc=features["mfcc"]
             )
             feature_stats("mfcc", x)
 
