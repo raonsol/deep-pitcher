@@ -10,13 +10,14 @@ from line_profiler_pycharm import profile
 from tqdm import tqdm
 
 from audio_process import AudioConverter
-from utils import yes_or_no, print_results, get_paths, is_dir
+from utils import yes_or_no, print_results, get_paths, is_dir, get_filename
 
-WAV_PATH = "/Volumes/vault0/dataset3/wav"
-CHORUS_PATH = "/Volumes/vault0/dataset3/chorus"
+WAV_PATH = "/Volumes/vault0/dataset3/wav-22khz"
+CHORUS_PATH = "/Volumes/vault0/dataset3/chorus-22khz"
 WAV_OVERWRITE = False
 CHORUS_OVERWRITE = False
 N_PROCESS = 10
+SAMPLE_RATE = 22050
 
 
 def export_track(data):
@@ -29,7 +30,7 @@ def export_track(data):
     """
     track, path = data
     track_path = unquote(track["Location"].replace("file://", ""))
-    file_name = str(track["Track ID"]) + ".wav"
+    file_name = str(track["Track_ID"]) + ".wav"
     export_path = os.path.join(path, file_name)
 
     # if the converted file exists, and the overwrite option is False
@@ -38,7 +39,7 @@ def export_track(data):
 
     try:
         c = AudioConverter(track_path, export_path)
-        c.export(format="wav", sample_rate=16000)
+        c.export(format="wav", sample_rate=SAMPLE_RATE)
         return 1
     except:
         return track_path
@@ -71,11 +72,10 @@ def convert_wav(tracks, out_path):
     return target_cnt, error_list, skip_cnt
 
 
-@profile
+# @profile
 def _extract_chorus(data):
-    track, in_path, out_path = data
-    input_path = os.path.join(in_path, track)
-    export_path = os.path.join(out_path, track)
+    input_path, dest_path = data
+    export_path = os.path.join(dest_path, get_filename(input_path) + ".wav")
 
     # skip duplicate if option is on
     if not CHORUS_OVERWRITE and os.path.exists(export_path):
@@ -85,17 +85,17 @@ def _extract_chorus(data):
         chorus_sec, success = c.detect_chorus()
         c.cut_audio(chorus_sec, 30)
         c.normalize()
-        c.export(format="wav", sample_rate=16000)
+        c.export(format="wav", sample_rate=SAMPLE_RATE)
 
         if not success:
-            return -2
+            return False
         else:
             return True
     except:
-        return in_path
+        return input_path
 
 
-@profile
+# @profile
 def extract_chorus(in_path, out_path):
     if not os.path.isdir(out_path):
         print(Fore.RED + "chorus extract path is not exist. ", end="")
@@ -104,34 +104,34 @@ def extract_chorus(in_path, out_path):
         else:
             print("Using default path...")
             out_path = "/tmp"
-    tracks = get_paths(in_path)
-    target_cnt = len(tracks)
+    track_paths = get_paths(in_path)
+    target_cnt = len(track_paths)
     error_list = []
     skipped_cnt = failed_cnt = 0
 
     print(f"Start extracting chorus of {target_cnt} files...")
-    with futures.ProcessPoolExecutor(max_workers=4) as exe:
+    with futures.ProcessPoolExecutor(max_workers=N_PROCESS) as exe:
         results = tqdm(
-            exe.map(_extract_chorus, zip(tracks, repeat(in_path), repeat(out_path))),
+            exe.map(_extract_chorus, zip(track_paths, repeat(out_path))),
             total=target_cnt,
         )
         for result in results:
             if result == -1:
                 skipped_cnt += 1
-            elif result == -2:
+            elif result is False:
                 failed_cnt += 1
             elif result is not True:
                 error_list.append(result)
 
-    ## for test in single process
+    # for test in single process
     # results = tqdm(
-    #     map(_extract_chorus, zip(tracks, repeat(in_path), repeat(out_path))),
+    #     map(_extract_chorus, zip(track_paths, repeat(out_path))),
     #     total=target_cnt,
     # )
     # for result in results:
     #     if result == -1:
     #         skipped_cnt += 1
-    #     elif result == -2:
+    #     elif result is False:
     #         failed_cnt += 1
     #     elif result is not True:
     #         error_list.append(result)
@@ -141,7 +141,9 @@ def extract_chorus(in_path, out_path):
 
 def main():
     # read tracks and convert to wav
-    tracks = pd.read_csv(os.path.join("./result_csv", "itdb_tracks.csv")).to_dict()
+    tracks = pd.read_csv(os.path.join("./result_csv", "itdb_tracks.csv")).to_dict(
+        "records"
+    )
     total_cnt, failed, skip_cnt = convert_wav(tracks, WAV_PATH)
     print_results(total_cnt, failed, skip_cnt)
 
@@ -149,7 +151,8 @@ def main():
     # normalize + cut 30sec of chorus part
     total_cnt, errors, skip_cnt, failed_cnt = extract_chorus(WAV_PATH, CHORUS_PATH)
     print_results(total_cnt, errors, skip_cnt)
-    print(f"{failed_cnt} items failed to estimate, used default time (60s)")
+    if failed_cnt > 0:
+        print(f"{failed_cnt} items failed to estimate, used default time (60s)")
 
 
 if __name__ == "__main__":

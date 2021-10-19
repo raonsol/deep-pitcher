@@ -1,4 +1,5 @@
 import contextlib
+import warnings
 
 from pydub import AudioSegment, effects
 import tempfile
@@ -34,7 +35,7 @@ class AudioConverter:
     T_MIN = T_SEC * 60
 
     # @profile
-    def __init__(self, src_path, process_path="/tmp"):
+    def __init__(self, src_path, process_path=None):
         """
         :param src_path: audio file path
         :type src_path: string
@@ -43,13 +44,16 @@ class AudioConverter:
         """
         # TODO: src에 경로나 음악파일 중 아무거나 집어넣어도 되도록 구현
         self.src_path = src_path
-        self.process_path = process_path
+        self.name = get_filename(src_path)
+        if process_path is None:
+            self.process_path = os.path.join("/tmp", self.name)
+        else:
+            self.process_path = process_path
         self.src = AudioSegment.from_file(src_path)
-        self.y, self.sr = librosa.load(
-            src_path, sr=16000, mono=True
-        )  # resample sr to 16kHz, use None to load with original sr
-        self.duration = self.y.shape[0] / float(self.sr)
+        self.duration = self.src.duration_seconds
         self.meta = mediainfo(src_path).get("TAG", None)
+        # lazy loading for librosa
+        self.y = self.sr = None
 
     def cut_audio(self, sec_start, sec_dur):
         """
@@ -65,7 +69,7 @@ class AudioConverter:
             self.T_SEC * sec_start : self.T_SEC * sec_start + self.T_SEC * sec_dur
         ]
 
-    @profile
+    # @profile
     def extract_features(self, features, moments, idx):
         """analyzes audio file and returns feature values
 
@@ -78,6 +82,13 @@ class AudioConverter:
         :returns: Series of features
         :rtype: pd.Series
         """
+
+        if not self.y:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                self.y, self.sr = librosa.load(
+                    self.src_path, sr=None, mono=True
+                )  # resample sr to 16kHz, or use None to load with original sr
 
         def feature_stats(name, values):
             if name == "tempo":
@@ -123,12 +134,12 @@ class AudioConverter:
 
         # stft
         stft = np.abs(librosa.stft(self.y, n_fft=2048, hop_length=512))
-        assert stft.shape[0] == 1 + 2048 // 2
-        assert (
-            np.ceil(len(self.y) / 512)
-            <= stft.shape[1]
-            <= np.ceil(len(self.y) / 512) + 1
-        )
+        # assert stft.shape[0] == 1 + 1024 // 2
+        # assert (
+        #     np.ceil(len(self.y) / 160)
+        #     <= stft.shape[1]
+        #     <= np.ceil(len(self.y) / 160) + 1
+        # )
 
         if "tempo" in features:
             # use beat.plp to get stats
@@ -179,7 +190,7 @@ class AudioConverter:
             mel = librosa.feature.melspectrogram(sr=self.sr, S=stft ** 2)
             # apply log scaling (dB) for mfcc
             x = librosa.feature.mfcc(
-                sr=self.sr, S=librosa.power_to_db(mel), n_mfcc=features["mfcc"]
+                S=librosa.power_to_db(mel), n_mfcc=features["mfcc"]
             )
             feature_stats("mfcc", x)
 
@@ -267,6 +278,13 @@ class AudioConverter:
         :return: Time in seconds of the start of the chorus
         :rtype: float
         """
+        if not self.y:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                self.y, self.sr = librosa.load(
+                    self.src_path, sr=None, mono=True
+                )  # resample sr to 16kHz, or use None to load with original sr
+
         # pychorus.create_chroma(self.y)
         s = np.abs(librosa.stft(self.y, n_fft=2 ** 14)) ** 2
         chroma = librosa.feature.chroma_stft(S=s, sr=self.sr)
@@ -363,7 +381,7 @@ if __name__ == "__main__":
                 out_path_v = os.path.join(OUT_VOCAL_PATH, out_name_f)
 
                 """
-        # 이름 출력에 문제없고 이미 변환된 파일이 out폴더에 존재할 경우 변환 SKIP
+        # 이름 출력에 문제없고 이미 변환된 파일이 out 폴더에 존재할 경우 변환 SKIP
         if out_name and os.path.isfile(out_path):
           print("Skipping", out_name)
           continue
