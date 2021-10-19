@@ -26,7 +26,7 @@ def print_results(total_cnt, errors, skip_cnt, print_failed=True):
         f"{success_cnt} items extracted, {skip_cnt} items skipped, {error_cnt} items failed"
     )
     if print_failed and errors:
-        print("Failed items:")
+        print(Fore.RED + "Failed items:" + Style.RESET_ALL)
         for item in errors:
             print(item)
 

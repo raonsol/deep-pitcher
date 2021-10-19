@@ -53,7 +53,7 @@ def extract_features(data):
     return success, feature
 
 
-@profile
+# @profile
 def main():
     colorama.init(autoreset=True)
     tracks = get_paths(TARGET_PATH)
@@ -98,9 +98,10 @@ def main():
         )
         for result in results:
             error_obj, y = result
-            feature_result.loc[y.name] = y
             if error_obj is not True:
                 error_list.append(error_obj)
+            else:
+                feature_result.loc[y.name] = y
 
     # single process run for test
     # results = tqdm(
@@ -117,9 +118,11 @@ def main():
     #     else:
     #         feature_result.loc[y.name] = y
 
+    print_results(n_total, error_list, 0, print_failed=True)
+
     # save to csv
     print("Destination path:" + out_path)
-    print("Saving result to csv...", end="")
+    print("Saving result to csv... ", end="")
     try:
         feature_result.to_csv(
             os.path.join(out_path, "result.csv"), float_format="%.{}e".format(10)
