@@ -13,7 +13,7 @@ from line_profiler_pycharm import profile
 from audio_process import AudioConverter
 from utils import print_results, get_paths, get_filename, is_dir
 
-TARGET_PATH = "/Volumes/vault0/dataset3/chorus-test"
+TARGET_PATH = "/Volumes/vault0/dataset3/chorus-22khz"
 DEST_PATH = "/Volumes/vault0/dataset3/feature"
 N_PROCESS = 10
 
@@ -125,7 +125,7 @@ def main():
     print("Saving result to csv... ", end="")
     try:
         feature_result.to_csv(
-            os.path.join(out_path, "result.csv"), float_format="%.{}e".format(10)
+            os.path.join(out_path, "result.csv"), float_format="%.{}e".format(5)
         )
     except Exception as e:
         print()
