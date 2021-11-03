@@ -1,3 +1,5 @@
+# To add a new cell, type '# %%'
+# To add a new markdown cell, type '# %% [markdown]'
 # %% [markdown]
 # # Model experiments
 # PCA와 t-SNE를 사용한 차원 축소의 효과에 대해 각각 비교하여 보고, clustering을 수행 후 t-SNE를 사용하여 결과를 시각화한다.
@@ -33,7 +35,7 @@ from sklearn.cluster import KMeans
 from scipy.spatial.distance import cdist
 
 distortions = []
-K = range(20, 401, 20)
+K = range(20, 201, 10)
 for k in K:
     kmeanModel = KMeans(n_clusters=k).fit(data)
     distortions.append(
@@ -58,20 +60,27 @@ data_labels = ["_".join(a) for a in data.columns.to_flat_index()]
 # t-sne 모델 생성 및 수행
 from sklearn.manifold import TSNE
 
-model_tsne = TSNE(n_components=2, learning_rate=300)
-time_start = time.time()
-tsne = pd.DataFrame(model_tsne.fit_transform(data), columns=["x1", "x2"])
-tsne.set_index(data.index, inplace=True)
-print(f"t-SNE Done. Elepsed Time:{time.time()-time_start}")
+
+def generate_tsne(data):
+    model_tsne = TSNE(n_components=2, learning_rate=200)
+    time_start = time.time()
+    tsne = pd.DataFrame(model_tsne.fit_transform(data), columns=["x1", "x2"])
+    tsne.set_index(data.index, inplace=True)
+    print(f"t-SNE Done. Elepsed Time:{time.time()-time_start}")
+    return tsne
+
 
 # PCA 수행
 from sklearn.decomposition import PCA
 
-model_pca = PCA(n_components=2)
-time_start = time.time()
-pca = pd.DataFrame(model_pca.fit_transform(data), columns=["x1", "x2"])
-pca.set_index(data.index, inplace=True)
-print(f"PCA Done. Elepsed Time:{time.time()-time_start}")
+
+def generate_pca(data, n_components=2):
+    model_pca = PCA(n_components=n_components)
+    time_start = time.time()
+    pca = pd.DataFrame(model_pca.fit_transform(data), columns=["x1", "x2"])
+    pca.set_index(data.index, inplace=True)
+    print(f"PCA Done. Elepsed Time:{time.time()-time_start}")
+    return pca
 
 
 # %%
@@ -79,12 +88,14 @@ print(f"PCA Done. Elepsed Time:{time.time()-time_start}")
 plt.figure(figsize=(20, 9))
 plt.subplot(1, 2, 1)
 plt.title("t-SNE for raw data", fontsize=15)
+tsne = generate_tsne(data)
 r0_plot_tsne = plt.scatter(
     tsne["x1"], tsne["x2"], c=range(0, tsne.shape[0]), cmap="viridis", alpha=0.6
 )
 
 plt.subplot(1, 2, 2)
 plt.title("PCA for raw data", fontsize=15)
+pca = generate_pca(data)
 r0_plot_pca = plt.scatter(
     pca["x1"], pca["x2"], c=range(0, pca.shape[0]), cmap="viridis", alpha=0.6
 )
@@ -225,26 +236,13 @@ data_standard.iloc[:, :] = scaler_standard.fit_transform(data)
 data_standard.head()
 
 # %% [markdown]
-# Min-Max Scaling을 수행한 데이터에 대해 차원 축소 수행
+# Scaling을 수행한 데이터에 대해 차원 축소 수행
 
 # %%
-# t-sne 모델 생성 및 수행
-from sklearn.manifold import TSNE
-
-model_tsne = TSNE(n_components=2, learning_rate=300)
-time_start = time.time()
-tsne_minmax = pd.DataFrame(model_tsne.fit_transform(data_minmax), columns=["x1", "x2"])
-tsne_minmax.set_index(data_minmax.index, inplace=True)
-print(f"t-SNE Done. Elepsed Time:{time.time()-time_start}")
-
-# PCA 수행
-from sklearn.decomposition import PCA
-
-model_pca = PCA(n_components=2)
-time_start = time.time()
-pca_minmax = pd.DataFrame(model_pca.fit_transform(data_minmax), columns=["x1", "x2"])
-pca_minmax.set_index(data_minmax.index, inplace=True)
-print(f"PCA Done. Elepsed Time:{time.time()-time_start}")
+tsne_minmax = generate_tsne(data_minmax)
+pca_minmax = generate_pca(data_minmax)
+tsne_standard = generate_tsne(data_standard)
+pca_standard = generate_pca(data_standard)
 
 # %% [markdown]
 # ## PCA and t-SNE for minmax data
@@ -337,21 +335,137 @@ r7_plot2 = plt.scatter(
 )
 
 # %% [markdown]
-# ## 8: K-Means with t-SNE, minmax scaling, 50 clusters
+# ## Weight tempo
 
 # %%
-r8 = pd.DataFrame(kmeans_50.fit_predict(tsne_minmax), columns=["cluster"])
+# Weight tempo for *5 on minmax data
+data_weighted = data_minmax.copy()
+data_weighted["tempo", "mean"] *= 8
+data_weighted.head()
+
+
+# %%
+tsne_weighted = generate_tsne(data_weighted)
+pca_weighted = generate_pca(data_weighted)
+model_pca_opt_weighted = PCA(n_components=0.95)
+pca_opt_weighted = model_pca_opt_weighted.fit_transform(data_weighted)
+print(f"Number of PCA demension: {model_pca_opt_weighted.n_components_}")
+
+# %% [markdown]
+# ## 8: K-Means with optimized PCA, minmax scaling, tempo weighted, 200 clusters
+
+# %%
+r8 = pd.DataFrame(kmeans.fit_predict(pca_opt_weighted), columns=["cluster"])
 r8.set_index(data.index, inplace=True)
 
 plt.figure(figsize=(20, 9))
 plt.subplot(1, 2, 1)
-plt.title("K-Means clustering after t-SNE (t-SNE), minmax-scaled", fontsize=15)
+plt.title(
+    "K-Means clustering after t-SNE (t-SNE), minmax-scaled, tempo weighted", fontsize=13
+)
 r8_plot1 = plt.scatter(
-    tsne_minmax["x1"], tsne_minmax["x2"], c=r8.values, cmap="viridis", alpha=0.6
+    tsne_weighted["x1"], tsne_weighted["x2"], c=r8.values, cmap="viridis", alpha=0.6
 )
 
 plt.subplot(1, 2, 2)
-plt.title("K-Means clustering after t-SNE (PCA), minmax-scaled", fontsize=15)
+plt.title(
+    "K-Means clustering after t-SNE (PCA), minmax-scaled, tempo weighted", fontsize=13
+)
 r8_plot2 = plt.scatter(
-    pca_minmax["x1"], pca_minmax["x2"], c=r8.values, cmap="viridis", alpha=0.6
+    pca_weighted["x1"], pca_weighted["x2"], c=r8.values, cmap="viridis", alpha=0.6
+)
+
+# %% [markdown]
+# ## 9: K-Means with t-SNE, minmax scaling, tempo weighted, 200 clusters
+
+# %%
+r9 = pd.DataFrame(kmeans.fit_predict(tsne_weighted), columns=["cluster"])
+r9.set_index(data.index, inplace=True)
+
+plt.figure(figsize=(20, 9))
+plt.subplot(1, 2, 1)
+plt.title(
+    "K-Means clustering after t-SNE (t-SNE), minmax-scaled, tempo weighted", fontsize=13
+)
+r9_plot1 = plt.scatter(
+    tsne_weighted["x1"], tsne_weighted["x2"], c=r9.values, cmap="viridis", alpha=0.6
+)
+
+plt.subplot(1, 2, 2)
+plt.title(
+    "K-Means clustering after t-SNE (PCA), minmax-scaled, tempo weighted", fontsize=13
+)
+r9_plot2 = plt.scatter(
+    pca_weighted["x1"], pca_weighted["x2"], c=r9.values, cmap="viridis", alpha=0.6
+)
+
+# %% [markdown]
+# ## 10: Agglomerative clustering with t-SNE, minmax scaling, tempo weighted, 200 clusters
+
+# %%
+from sklearn.cluster import AgglomerativeClustering
+
+# 200개의 ward clustering 모델 생성
+agglomerative = AgglomerativeClustering(n_clusters=200)
+agglomerative_50 = AgglomerativeClustering(n_clusters=50)
+
+
+# %%
+r10 = pd.DataFrame(agglomerative.fit_predict(tsne_weighted), columns=["cluster"])
+r10.set_index(data.index, inplace=True)
+
+
+# %%
+plt.figure(figsize=(20, 9))
+plt.subplot(1, 2, 1)
+plt.title(
+    "Agglomerative clustering after t-SNE (t-SNE), minmax-scaled, tempo weighted",
+    fontsize=13,
+)
+r10_plot1 = plt.scatter(
+    tsne_weighted["x1"], tsne_weighted["x2"], c=r10.values, cmap="viridis", alpha=0.6
+)
+
+plt.subplot(1, 2, 2)
+plt.title(
+    "Agglomerative clustering after t-SNE (PCA), minmax-scaled, tempo weighted",
+    fontsize=13,
+)
+r10_plot2 = plt.scatter(
+    pca_weighted["x1"], pca_weighted["x2"], c=r10.values, cmap="viridis", alpha=0.6
+)
+
+# %% [markdown]
+# ## 11: Spectral clustering with t-SNE, minmax scaling, tempo weighted
+
+# %%
+from sklearn.cluster import SpectralClustering
+
+# 200개의 Spectral clustering 모델 생성
+spectral = SpectralClustering(n_clusters=200, assign_labels="discretize")
+spectral_50 = SpectralClustering(n_clusters=50, assign_labels="discretize")
+
+
+# %%
+r11 = pd.DataFrame(spectral.fit_predict(tsne_weighted), columns=["cluster"])
+r11.set_index(data.index, inplace=True)
+
+
+# %%
+plt.figure(figsize=(20, 9))
+plt.subplot(1, 2, 1)
+plt.title(
+    "Spectral clustering after t-SNE (t-SNE), minmax-scaled, tempo weighted",
+    fontsize=13,
+)
+r10_plot1 = plt.scatter(
+    tsne_weighted["x1"], tsne_weighted["x2"], c=r11.values, cmap="viridis", alpha=0.6
+)
+
+plt.subplot(1, 2, 2)
+plt.title(
+    "Spectral clustering after t-SNE (PCA), minmax-scaled, tempo weighted", fontsize=13
+)
+r10_plot2 = plt.scatter(
+    pca_weighted["x1"], pca_weighted["x2"], c=r11.values, cmap="viridis", alpha=0.6
 )
