@@ -7,6 +7,7 @@ from pydub.utils import mediainfo
 from scipy import stats
 from spleeter.separator import Separator
 from spleeter.audio.adapter import AudioAdapter
+from spleeter.utils import logging
 from multiprocessing import freeze_support
 from line_profiler_pycharm import profile
 from tqdm import tqdm
@@ -196,18 +197,20 @@ class AudioConverter:
 
         return result
 
-    def extract_vocal_by_file(self, out_path, out_name, option=2):
+    def extract_vocal_by_file(self, out_path, option=2):
         """
         Separates the vocal and accompaniments and export it into audio file
 
         :param out_path: Output path
-        :param out_name: Output name
         :param option: (optional) number of channels that wants to separate, default=2
         """
         # 2stems: vocal + background music
         separator = Separator("spleeter:%sstems-16kHz" % str(option))
+
+        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+        # warnings.simplefilter("ignore")
         separator.separate_to_file(
-            self.src_path, out_path, filename_format=out_name + "_{instrument}.{codec}"
+            self.src_path, out_path, filename_format="{filename}_{instrument}.{codec}"
         )
 
     def extract_vocal(self, option=2):
@@ -228,11 +231,12 @@ class AudioConverter:
 
         return prediction
 
-    def detect_pitch(self, out_name="out", model_size="small"):
-        """detect pitch values
+    def detect_pitch(self, out_path="pitch", method="crepe", model_size="small"):
+        """detect pitch values and save to csv
 
         :param out_name: (optional) 내부에서 임시로 사용할 파일명
-        :param model_size: tiny', 'small', 'medium', 'large', 'full'
+        :param method: (optional) pitch detection method, default=crepe
+        :param model_size: (optional) 'tiny', 'small', 'medium', 'large', 'full'
 
         :returns Tuple: (time: np.ndarray [shape=(T,)]
         :returns frequency: np.ndarray [shape=(T,)]
@@ -241,20 +245,12 @@ class AudioConverter:
 
         with tempfile.TemporaryDirectory() as temp_path:
             # temp_path.{out_name}_vocals.wav 이름으로 임시공간에 출력
-            self.extract_vocal_by_file(temp_path, out_name)
-            temp_path_out = os.path.join(temp_path, out_name + "_vocals.wav")
+            temp_path_out = os.path.join(temp_path, "_vocals.wav")
+            self.extract_vocal_by_file(temp_path_out)
 
             # 임시공간에 있는 파일로 pitch detect
-            prediction = crepe.process_file(
-                temp_path_out,
-                output=temp_path,
-                model_capacity=model_size,
-                save_activation=False,
-                save_plot=False,
-                plot_voicing=False,
-                step_size=100,
-                viterbi=False,
-            )
+            extract_pitch(path=temp_path_out, out_path=out_path, method=method, model_size=model_size)
+
             predicted_path = os.path.join(temp_path, out_name + "_vocals.f0.csv")
             predict_val = np.transpose(
                 np.genfromtxt(predicted_path, delimiter=",", dtype=float, skip_header=1)
@@ -262,7 +258,45 @@ class AudioConverter:
 
         return predict_val[0], predict_val[1], predict_val[2]
 
-    def detect_pitch_alt(self):
+    def extract_pitch(self, path="None", out_path="pitch", method="crepe", model_size="small"):
+        """extract pitch values
+
+        :param out_name: (optional) 내부에서 임시로 사용할 파일명
+        :param method: 'crepe' or 'spice'
+        :param model_size: tiny', 'small', 'medium', 'large', 'full'
+
+        :returns Tuple: (time: np.ndarray [shape=(T,)]
+        :returns frequency: np.ndarray [shape=(T,)]
+        :returns activation: np.ndarray [shape=(T, 360)]
+        """
+        if path is None:
+            path=self.src_path
+            
+        if method == "crepe":
+            self.detect_pitch_crepe(path, out_path, model_size)
+        elif method == "spice":
+            self.detect_pitch_spice(path, out_path)
+    
+    def detect_pitch_crepe(self, src_path=None, out_path="pitch_crepe", model_size="small"):
+        if src_path is None:
+            src_path=self.src_path
+            
+        crepe.process_file(
+                src_path,
+                output=out_path,
+                model_capacity=model_size,
+                save_activation=False,
+                save_plot=False,
+                plot_voicing=False,
+                step_size=100,
+                viterbi=False,
+            )
+
+    def detect_pitch_spice(self, src_path=None, out_path="pitch_spice"):
+        if src_path is None:
+            src_path=self.src_path
+        src_name=get_filename(src_path)
+
         model = hub.load("./spice_2")
         audio_sample = self.src.get_array_of_samples()
         model_output = model.signatures["serving_default"](
@@ -271,6 +305,12 @@ class AudioConverter:
         pitch_outputs = model_output["pitch"]
         uncertainty_outputs = model_output["uncertainty"]
         confidence_outputs = 1.0 - uncertainty_outputs
+        # TODO: spice output 확인해서 time단위 대응
+        time = np.arange(confidence_outputs.shape[0]) * 10 / 1000.0
+
+        pitch_data = np.vstack([time, pitch_outputs, confidence_outputs]).transpose()
+        np.savetxt(src_name, pitch_data, fmt=['%.3f', '%.3f', '%.6f'], delimiter=',',
+                header='time,frequency,confidence', comments='')
 
     # @profile
     def detect_chorus(self):
