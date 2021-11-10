@@ -21,7 +21,7 @@ import crepe
 import pychorus
 
 # 경로와 포맷 지정
-from utils import get_filename
+from utils import get_filename, is_dir
 
 ROOT_PATH = os.path.join(os.path.expanduser("~"), "audio_root/")
 BASE_PATH = ROOT_PATH + "original"
@@ -204,6 +204,8 @@ class AudioConverter:
         :param out_path: Output path
         :param option: (optional) number of channels that wants to separate, default=2
         """
+        is_dir(out_path)
+
         # 2stems: vocal + background music
         separator = Separator("spleeter:%sstems-16kHz" % str(option))
 
@@ -261,7 +263,8 @@ class AudioConverter:
     def extract_pitch(self, path="None", out_path="pitch", method="crepe", model_size="small"):
         """extract pitch values
 
-        :param out_name: (optional) 내부에서 임시로 사용할 파일명
+        :param path: (optional) path of the target, use loaded audio if not given
+        :param out_path: (optional) path for the output file, use default path if not given
         :param method: 'crepe' or 'spice'
         :param model_size: tiny', 'small', 'medium', 'large', 'full'
 
@@ -280,6 +283,7 @@ class AudioConverter:
     def detect_pitch_crepe(self, src_path=None, out_path="pitch_crepe", model_size="small"):
         if src_path is None:
             src_path=self.src_path
+        is_dir(out_path)
             
         crepe.process_file(
                 src_path,
@@ -296,6 +300,7 @@ class AudioConverter:
         if src_path is None:
             src_path=self.src_path
         src_name=get_filename(src_path)
+        is_dir(out_path)
 
         model = hub.load("./spice_2")
         audio_sample = self.src.get_array_of_samples()
@@ -378,6 +383,8 @@ class AudioConverter:
 
         if export_path is None:
             export_path = self.process_path
+        is_dir(export_path)
+        
         self.src.export(
             export_path,
             format=format,
