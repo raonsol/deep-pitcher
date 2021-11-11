@@ -61,10 +61,14 @@ def get_filename(in_path):
     return os.path.splitext(os.path.basename(in_path))[0]
 
 
-def is_dir(in_path):
+def is_dir(in_path, default=None):
     if not os.path.isdir(in_path):
         print(Fore.RED + f"Path is not exist: {in_path}" + Style.RESET_ALL)
         if not yes_or_no("Would you like to make one?"):
+            if default is not None:
+                print("Using default path...")
+                path = os.path.join(os.getcwd(), default)
+                os.mkdir(path)
             return False
         else:
             os.mkdir(in_path)
