@@ -53,38 +53,13 @@ def extract_features(data):
     return success, feature
 
 
-# @profile
-def main():
-    colorama.init(autoreset=True)
-    tracks = get_paths(TARGET_PATH)
-
-    # 75 features
-    feature_list = dict(
-        tonnetz=6,
-        tempo=1,
-        rms=1,
-        zcr=1,
-        spectral_centroid=1,
-        spectral_bandwidth=1,
-        spectral_contrast=7,
-        spectral_rolloff=1,
-        chroma_stft=12,
-        chroma_cqt=12,
-        chroma_cens=12,
-        mfcc=20,
-    )
-    moments = ["mean", "std", "skew", "kurtosis", "median", "min", "max"]
+def extract_features_parallel(in_path, out_path, feature_list, moments):
+    tracks = get_paths(in_path)
     n_total = len(tracks)
     idxs = [get_filename(track) for track in tracks]
     cols = get_columns(feature_list, moments)
     feature_result = pd.DataFrame(index=idxs, columns=cols, dtype=np.float32)
     error_list = []
-
-    out_path = DEST_PATH
-    if not is_dir(out_path):
-        print("Using default path...")
-        out_path = os.path.join(os.getcwd(), "feature")
-        os.mkdir(out_path)
 
     # use multiprocessing
     print(f"Starting extract features for {n_total} files...")
@@ -92,7 +67,7 @@ def main():
         results = tqdm(
             exe.map(
                 extract_features,
-                zip(tracks, repeat(DEST_PATH), repeat(feature_list), repeat(moments)),
+                zip(tracks, repeat(out_path), repeat(feature_list), repeat(moments)),
             ),
             total=n_total,
         )
@@ -118,6 +93,40 @@ def main():
     #     else:
     #         feature_result.loc[y.name] = y
 
+    return feature_result, n_total, error_list
+
+
+# @profile
+def main():
+    colorama.init(autoreset=True)
+
+    # 75 features
+    feature_list = dict(
+        tonnetz=6,
+        tempo=1,
+        rms=1,
+        zcr=1,
+        spectral_centroid=1,
+        spectral_bandwidth=1,
+        spectral_contrast=7,
+        spectral_rolloff=1,
+        chroma_stft=12,
+        chroma_cqt=12,
+        chroma_cens=12,
+        mfcc=20,
+    )
+    moments = ["mean", "std", "skew", "kurtosis", "median", "min", "max"]
+
+    target_path = TARGET_PATH
+    out_path = DEST_PATH
+    if not is_dir(out_path):
+        print("Using default path...")
+        out_path = os.path.join(os.getcwd(), "feature")
+        os.mkdir(out_path)
+
+    feature_result, n_total, error_list = extract_features_parallel(
+        target_path, out_path, feature_list, moments
+    )
     print_results(n_total, error_list, 0, print_failed=True)
 
     # save to csv
