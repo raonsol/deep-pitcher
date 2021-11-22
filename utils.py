@@ -45,8 +45,10 @@ def get_paths(in_path):
     file_list = [
         x.path
         for x in os.scandir(path)
-        if (x.path.endswith(".wav") or x.path.endswith(".WAV"))
+        # if (x.path.endswith(".wav") or x.path.endswith(".WAV"))
+        if not x.is_dir() and not x.name.startswith('.')
     ]
+
     return file_list
 
 
