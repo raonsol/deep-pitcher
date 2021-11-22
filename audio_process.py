@@ -209,7 +209,7 @@ class AudioConverter:
         # 2stems: vocal + background music
         separator = Separator("spleeter:%sstems-16kHz" % str(option))
 
-        os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+        os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
         # warnings.simplefilter("ignore")
         separator.separate_to_file(
             self.src_path, out_path, filename_format="{filename}_{instrument}.{codec}"
@@ -251,7 +251,12 @@ class AudioConverter:
             self.extract_vocal_by_file(temp_path_out)
 
             # 임시공간에 있는 파일로 pitch detect
-            extract_pitch(path=temp_path_out, out_path=out_path, method=method, model_size=model_size)
+            extract_pitch(
+                path=temp_path_out,
+                out_path=out_path,
+                method=method,
+                model_size=model_size,
+            )
 
             predicted_path = os.path.join(temp_path, out_name + "_vocals.f0.csv")
             predict_val = np.transpose(
@@ -260,7 +265,9 @@ class AudioConverter:
 
         return predict_val[0], predict_val[1], predict_val[2]
 
-    def extract_pitch(self, path="None", out_path="pitch", method="crepe", model_size="small"):
+    def extract_pitch(
+        self, path=None, out_path="pitch", method="crepe", model_size="small"
+    ):
         """extract pitch values
 
         :param path: (optional) path of the target, use loaded audio if not given
@@ -273,33 +280,37 @@ class AudioConverter:
         :returns activation: np.ndarray [shape=(T, 360)]
         """
         if path is None:
-            path=self.src_path
-            
+            path = self.src_path
+
         if method == "crepe":
             self.detect_pitch_crepe(path, out_path, model_size)
         elif method == "spice":
             self.detect_pitch_spice(path, out_path)
-    
-    def detect_pitch_crepe(self, src_path=None, out_path="pitch_crepe", model_size="small"):
+
+    def detect_pitch_crepe(self, src_path=None, out_path=None, model_size="small"):
         if src_path is None:
-            src_path=self.src_path
+            src_path = self.src_path
+        if out_path is None:
+            out_path = "pitch_crepe"
+
         is_dir(out_path)
-            
+
         crepe.process_file(
-                src_path,
-                output=out_path,
-                model_capacity=model_size,
-                save_activation=False,
-                save_plot=False,
-                plot_voicing=False,
-                step_size=100,
-                viterbi=False,
-            )
+            src_path,
+            output=out_path,
+            model_capacity=model_size,
+            save_activation=False,
+            save_plot=False,
+            plot_voicing=False,
+            step_size=100,
+            viterbi=True,
+            verbose=False,
+        )
 
     def detect_pitch_spice(self, src_path=None, out_path="pitch_spice"):
         if src_path is None:
-            src_path=self.src_path
-        src_name=get_filename(src_path)
+            src_path = self.src_path
+        src_name = get_filename(src_path)
         is_dir(out_path)
 
         model = hub.load("./spice_2")
@@ -314,8 +325,14 @@ class AudioConverter:
         time = np.arange(confidence_outputs.shape[0]) * 10 / 1000.0
 
         pitch_data = np.vstack([time, pitch_outputs, confidence_outputs]).transpose()
-        np.savetxt(src_name, pitch_data, fmt=['%.3f', '%.3f', '%.6f'], delimiter=',',
-                header='time,frequency,confidence', comments='')
+        np.savetxt(
+            src_name,
+            pitch_data,
+            fmt=["%.3f", "%.3f", "%.6f"],
+            delimiter=",",
+            header="time,frequency,confidence",
+            comments="",
+        )
 
     # @profile
     def detect_chorus(self):
@@ -384,7 +401,7 @@ class AudioConverter:
         if export_path is None:
             export_path = self.process_path
         is_dir(export_path)
-        
+
         self.src.export(
             export_path,
             format=format,
