@@ -16,7 +16,7 @@ from sklearn.preprocessing import minmax_scale
 
 # %%
 SOURCE_PATH = "/Volumes/vault0/dataset3/chorus-22khz"
-FEATURE_CSV_PATH = "./result_22000hz.csv"
+FEATURE_CSV_PATH = "./results/features_22000hz.csv"
 TARGET = "10888.wav"
 
 target = os.path.join(SOURCE_PATH, TARGET)
@@ -182,7 +182,7 @@ def load_data(path):
 
 
 # 데이터 불러오기
-data = load_data("result_22000hz.csv")
+data = load_data("./results/features_22000hz.csv")
 pd.set_option("display.max_columns", None)
 data.head()
 data_labels = ["_".join(a) for a in data.columns.to_flat_index()]

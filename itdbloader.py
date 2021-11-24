@@ -92,7 +92,7 @@ class DbLoader:
             print("Check out .itdb.config file")
             sys.exit()
 
-        self.csv_path = os.path.join(os.getcwd(), "result_csv")
+        self.csv_path = os.path.join(os.getcwd(), "result")
         if not os.path.exists(self.csv_path):
             os.mkdir(self.csv_path)
 

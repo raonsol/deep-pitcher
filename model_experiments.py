@@ -17,7 +17,7 @@ def load_data(path):
 
 
 # 데이터 불러오기
-data = load_data("result_22000hz.csv")
+data = load_data("results/features_22000hz.csv")
 pd.set_option("display.max_columns", None)
 data.head()
 

@@ -141,7 +141,7 @@ def extract_chorus(in_path, out_path):
 
 def main():
     # read tracks and convert to wav
-    tracks = pd.read_csv(os.path.join("./result_csv", "itdb_tracks.csv")).to_dict(
+    tracks = pd.read_csv(os.path.join("./result", "itdb_tracks.csv")).to_dict(
         "records"
     )
     total_cnt, failed, skip_cnt = convert_wav(tracks, WAV_PATH)
