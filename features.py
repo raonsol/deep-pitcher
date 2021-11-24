@@ -18,11 +18,14 @@ DEST_PATH = "/Volumes/vault0/dataset3/feature"
 N_PROCESS = 10
 
 
-def get_columns(feature_list, moments):
+def get_columns(feature_list, moments, prefix=None):
     columns = []
 
     # ex: (mfccs, mean, 01), (mfccs, mean, 02), (mfccs, max, 01), ...
     for name, size in feature_list.items():
+        if prefix:
+            name=prefix+"_"+name
+
         if name == "tempo":
             it = ((name, "mean", "01"),)
             columns.extend(it)
@@ -40,7 +43,7 @@ def get_columns(feature_list, moments):
 
 # @profile
 def extract_features(data):
-    track, out_path, features, moments = data
+    track, features, moments = data
     feature = {}
     idx = get_columns(features, moments)
     try:
@@ -53,7 +56,8 @@ def extract_features(data):
     return success, feature
 
 
-def extract_features_parallel(in_path, out_path, feature_list, moments):
+#TODO: skip if already exists
+def extract_features_parallel(in_path, feature_list, moments):
     tracks = get_paths(in_path)
     n_total = len(tracks)
     idxs = [get_filename(track) for track in tracks]
@@ -67,7 +71,7 @@ def extract_features_parallel(in_path, out_path, feature_list, moments):
         results = tqdm(
             exe.map(
                 extract_features,
-                zip(tracks, repeat(out_path), repeat(feature_list), repeat(moments)),
+                zip(tracks, repeat(feature_list), repeat(moments)),
             ),
             total=n_total,
         )
@@ -82,7 +86,7 @@ def extract_features_parallel(in_path, out_path, feature_list, moments):
     # results = tqdm(
     #     map(
     #         extract_features,
-    #         zip(tracks, repeat(out_path), repeat(feature_list), repeat(moments)),
+    #         zip(tracks, repeat(feature_list), repeat(moments)),
     #     ),
     #     total=n_total,
     # )
@@ -125,7 +129,7 @@ def main():
         os.mkdir(out_path)
 
     feature_result, n_total, error_list = extract_features_parallel(
-        target_path, out_path, feature_list, moments
+        target_path, feature_list, moments
     )
     print_results(n_total, error_list, 0, print_failed=True)
 
