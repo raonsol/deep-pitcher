@@ -50,7 +50,7 @@ def extract_features(data):
         c = AudioConverter(track)
         feature = c.extract_features(features, moments, idx)
         success = True
-    except:
+    except Exception:
         success = track
 
     return success, feature
