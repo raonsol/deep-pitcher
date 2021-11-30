@@ -1,9 +1,12 @@
 from multiprocessing import freeze_support
 from colorama import init, Fore
 import MySQLdb
-
+import requests
 import itdbloader
+import pandas as pd
+from tqdm import tqdm
 from utils import yes_or_no
+PATCH_URL="http://www.vloom.co.kr:3000/dev/music/interval"
 
 
 def connect_db():
@@ -89,6 +92,28 @@ def create_table(c, db_name):
         return False
     return True
 
+def send_patch(url, json_data):
+    """send HTTP PATCH with given data
+
+    :param data: csv data
+    :return: status code, status message
+    """
+    r=requests.patch(url, json=json_data)
+    # print(str(idx), str(value), r.json())
+    return r.status_code, r.json()["status"]
+
+def send_pitch(url, pitch_path):
+    df_pitch=pd.read_csv(pitch_path, index_col=[0])
+    df_pitch=df_pitch.fillna(df_pitch.mean())
+    print(df_pitch.head())
+
+    error_list = []
+    for index, row in tqdm(df_pitch.iterrows(), total=df_pitch.shape[0]):
+        data={"itunes_id": index, "frequency": round(row["mean"], 2)}
+        status_code, success=send_patch(url, data)
+        if not success:
+            error_list.append(index)
+            print(str(index), "Error code:"+ str(status_code), str(success))
 
 def main():
     init(autoreset=True)
