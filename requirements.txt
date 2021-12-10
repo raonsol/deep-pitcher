@@ -1,20 +1,39 @@
-python=3.8
+# python==3.8
 argcomplete==1.12.3
 colorama==0.4.4
-crepe==0.0.12
 humanize==3.12.0
 ipython==7.29.0
-librosa==0.8.0
 line_profiler_pycharm==1.1.0
 matplotlib==3.3.4
-mysqlclient==2.0.3
-numpy==1.19.5
-pandas==1.1.2
-pychorus==0.1
 pydub==0.25.1
-scikit_learn==1.0.1
-scipy==1.4.1
-spleeter==2.3.0
-tensorflow==2.5.0
 tensorflow_hub==0.12.0
 tqdm==4.59.0
+pychorus==0.1
+crepe==0.0.12
+typer==0.3.2
+httpx==0.19.0
+h2
+
+# for M1
+# tensorflow-macos
+# tensorflow-metal
+
+# install with miniforge conda(conda-forge) with M1
+# tensorflow==2.5.0
+tensorflow-deps==2.5.0
+scikit_learn==1.0.1
+numpy==1.19.5
+librosa==0.8.0
+mysqlclient==2.0.3
+pandas==1.1.2
+scipy==1.4.1
+llvmlite
+numba
+ffmpeg
+ffmpeg-python
+libsndfile
+tensorboard
+
+# unsupported with M1
+# try --no-dependencies and install dependencies manually
+spleeter==2.3.0
